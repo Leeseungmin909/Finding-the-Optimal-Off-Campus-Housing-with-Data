@@ -61,3 +61,26 @@ python3 src/enrich_house_coordinates.py --timeout 20 --max-retries 3 --sleep-sec
 
 다음 구현 단계에서는 `house_with_coordinates.csv`를 이용해 Folium 기반 히트맵과
 후보 자취방 마커 시각화를 연결할 수 있습니다.
+
+## Folium 지도 생성
+
+아래 스크립트는 자취방 좌표, 버스 정류장, CCTV 데이터를 이용해
+`최적 자취방 히트맵`과 `상위 후보 마커`가 포함된 HTML 지도를 생성합니다.
+
+```bash
+python3 src/generate_folium_map.py --top-n 20
+```
+
+생성 결과:
+
+- `outputs/optimal_room_map.html`
+- `outputs/optimal_room_scores.csv`
+
+평가 점수는 아래 요소를 가중합해서 계산합니다.
+
+- 월세가 낮을수록 가산점
+- 보증금이 낮을수록 가산점
+- 전용면적이 넓을수록 가산점
+- 건축년도가 최근일수록 가산점
+- 주변 버스 정류장 수가 많을수록 가산점
+- 주변 CCTV 수가 많을수록 가산점

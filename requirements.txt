@@ -1,0 +1,5 @@
+pandas
+requests
+pyproj
+folium
+python-dotenv

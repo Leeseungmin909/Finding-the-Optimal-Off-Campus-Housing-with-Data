@@ -10,7 +10,8 @@
 2. `src/pnu_generator.py`
    자취방 주소를 기반으로 법정동코드와 PNU를 생성합니다.
 3. `src/enrich_house_coordinates.py`
-   VWorld API를 호출해 자취방별 위도/경도를 조회하고 `house_with_coordinates.csv`로 저장합니다.
+   VWorld API를 호출해 자취방별 위도/경도를 조회하고
+   최종본 `house_with_coordinates.csv`, 디버그본 `house_with_coordinates_debug.csv`로 저장합니다.
 
 ## 설치
 

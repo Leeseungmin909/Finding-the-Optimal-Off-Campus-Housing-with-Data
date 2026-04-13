@@ -22,73 +22,98 @@ def build_parcel_address(row: pd.Series) -> str:
     return f'{str(row["시도"]).strip()} {str(row["구"]).strip()} {str(row["법정동"]).strip()} {bunji}'
 
 
+def resolve_single_location(
+    pnu: object,
+    parcel_address: str,
+    client: VWorldClient,
+    query_strategy: str,
+    sleep_seconds: float,
+) -> tuple[object, object, object, object]:
+    lon = None
+    lat = None
+    source = None
+    error_message = None
+
+    should_try_pnu_first = query_strategy == "pnu_then_address"
+    should_try_address = query_strategy in {"pnu_then_address", "address_only"}
+
+    if should_try_pnu_first and pd.notna(pnu):
+        try:
+            result = client.get_parcel_centroid_by_pnu(str(pnu))
+            if sleep_seconds > 0:
+                time.sleep(sleep_seconds)
+            if result:
+                lon, lat = result
+                source = "pnu_centroid"
+                error_message = None
+        except (VWorldAPIError, VWorldRequestError, ValueError) as exc:
+            error_message = str(exc)
+
+    if (lon is None or lat is None) and should_try_address:
+        try:
+            result = client.get_coordinates_from_address(
+                parcel_address,
+                address_type="PARCEL",
+            )
+            if sleep_seconds > 0:
+                time.sleep(sleep_seconds)
+            if result:
+                lon, lat = result
+                source = "parcel_address"
+                error_message = None
+        except (VWorldAPIError, VWorldRequestError) as exc:
+            if error_message is None:
+                error_message = str(exc)
+
+    return lon, lat, source, error_message
+
+
 def enrich_coordinates(
     df: pd.DataFrame,
     client: VWorldClient,
     sleep_seconds: float = 0.0,
+    query_strategy: str = "address_only",
 ) -> pd.DataFrame:
+    result_df = df.copy()
+    result_df["지번주소"] = result_df.apply(build_parcel_address, axis=1)
+
+    lookup_df = (
+        result_df[["PNU", "지번주소"]]
+        .drop_duplicates()
+        .reset_index(drop=True)
+    )
+
     resolved_lon = []
     resolved_lat = []
     resolved_source = []
     resolved_error = []
-    pnu_cache = {}
-    address_cache = {}
+    total = len(lookup_df)
 
-    total = len(df)
-
-    for idx, (_, row) in enumerate(df.iterrows(), start=1):
-        lon = None
-        lat = None
-        source = None
-        error_message = None
-
-        pnu = row.get("PNU")
-        if pd.notna(pnu):
-            try:
-                pnu_key = str(pnu)
-                if pnu_key not in pnu_cache:
-                    pnu_cache[pnu_key] = client.get_parcel_centroid_by_pnu(pnu_key)
-                    if sleep_seconds > 0:
-                        time.sleep(sleep_seconds)
-                result = pnu_cache[pnu_key]
-                if result:
-                    lon, lat = result
-                    source = "pnu_centroid"
-            except (VWorldAPIError, VWorldRequestError, ValueError) as exc:
-                error_message = str(exc)
-
-        if lon is None or lat is None:
-            parcel_address = build_parcel_address(row)
-            try:
-                if parcel_address not in address_cache:
-                    address_cache[parcel_address] = client.get_coordinates_from_address(
-                        parcel_address,
-                        address_type="PARCEL",
-                    )
-                    if sleep_seconds > 0:
-                        time.sleep(sleep_seconds)
-                result = address_cache[parcel_address]
-                if result:
-                    lon, lat = result
-                    source = "parcel_address"
-            except (VWorldAPIError, VWorldRequestError) as exc:
-                if error_message is None:
-                    error_message = str(exc)
-
+    for idx, row in lookup_df.iterrows():
+        lon, lat, source, error_message = resolve_single_location(
+            pnu=row.get("PNU"),
+            parcel_address=row["지번주소"],
+            client=client,
+            query_strategy=query_strategy,
+            sleep_seconds=sleep_seconds,
+        )
         resolved_lon.append(lon)
         resolved_lat.append(lat)
         resolved_source.append(source)
         resolved_error.append(error_message)
 
-        if idx % 100 == 0 or idx == total:
-            print(f"[{idx}/{total}] 좌표 조회 진행 중")
+        progress = idx + 1
+        if progress % 100 == 0 or progress == total:
+            print(f"[{progress}/{total}] 고유 주소 좌표 조회 진행 중")
 
-    result_df = df.copy()
-    result_df["경도"] = resolved_lon
-    result_df["위도"] = resolved_lat
-    result_df["좌표조회방식"] = resolved_source
-    result_df["좌표조회에러"] = resolved_error
-    return result_df
+    lookup_df["경도"] = resolved_lon
+    lookup_df["위도"] = resolved_lat
+    lookup_df["좌표조회방식"] = resolved_source
+    lookup_df["좌표조회에러"] = resolved_error
+
+    merged_df = result_df.drop(columns=["경도", "위도", "좌표조회방식", "좌표조회에러"], errors="ignore")
+    merged_df = merged_df.merge(lookup_df, on=["PNU", "지번주소"], how="left")
+    return merged_df.drop(columns=["지번주소"])
 
 
 def parse_args() -> argparse.Namespace:
@@ -134,6 +159,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="테스트용으로 앞에서부터 일부 행만 처리",
     )
+    parser.add_argument(
+        "--query-strategy",
+        choices=["address_only", "pnu_then_address"],
+        default="address_only",
+        help="좌표 조회 전략. 속도를 위해 기본값은 address_only입니다.",
+    )
     return parser.parse_args()
 
 
@@ -160,6 +191,7 @@ def main() -> None:
         house_df,
         client,
         sleep_seconds=args.sleep_seconds,
+        query_strategy=args.query_strategy,
     )
     output_df.to_csv(args.output, index=False, encoding="utf-8-sig")
 

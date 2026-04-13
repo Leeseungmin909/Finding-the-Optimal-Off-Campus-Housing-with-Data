@@ -47,8 +47,8 @@ python3 src/enrich_house_coordinates.py --limit 100
 대량 데이터 전체 실행 전에는 먼저 일부 샘플로 테스트하는 것을 권장합니다.
 
 ```bash
-python3 src/enrich_house_coordinates.py --limit 100 --timeout 20 --max-retries 3 --sleep-seconds 0.1
-python3 src/enrich_house_coordinates.py --timeout 20 --max-retries 3 --sleep-seconds 0.1
+python3 src/enrich_house_coordinates.py --limit 100 --query-strategy address_only --timeout 20 --max-retries 3 --sleep-seconds 0.05
+python3 src/enrich_house_coordinates.py --query-strategy address_only --timeout 20 --max-retries 3 --sleep-seconds 0.05
 ```
 
 ## 좌표 조회 전략

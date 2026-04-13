@@ -39,10 +39,17 @@ VWORLD_API_KEY=YOUR_VWORLD_API_KEY
 ```bash
 python3 data.py
 python3 src/pnu_generator.py
-python3 src/enrich_house_coordinates.py
+python3 src/enrich_house_coordinates.py --limit 100
 ```
 
 필요하면 일회성으로 `--api-key` 옵션을 직접 넘길 수도 있습니다.
+
+대량 데이터 전체 실행 전에는 먼저 일부 샘플로 테스트하는 것을 권장합니다.
+
+```bash
+python3 src/enrich_house_coordinates.py --limit 100 --timeout 20 --max-retries 3 --sleep-seconds 0.1
+python3 src/enrich_house_coordinates.py --timeout 20 --max-retries 3 --sleep-seconds 0.1
+```
 
 ## 좌표 조회 전략
 

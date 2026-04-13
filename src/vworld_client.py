@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Optional, Tuple
-import requests
 
-from dotenv import load_dotenv
-load_dotenv()
+import requests
+from requests import Response
+from requests.exceptions import RequestException
 
 try:
     from pyproj import Transformer
@@ -15,6 +16,10 @@ except ImportError:  # pragma: no cover - optional at import time
 
 class VWorldAPIError(RuntimeError):
     """Raised when the VWorld API returns an error response."""
+
+
+class VWorldRequestError(RuntimeError):
+    """Raised when a network issue occurs while calling the VWorld API."""
 
 
 def transform_coordinates(
@@ -80,16 +85,13 @@ def polygon_centroid(ring: Iterable[Iterable[float]]) -> Tuple[float, float]:
 @dataclass
 class VWorldClient:
     api_key: str
-    timeout: int = 10
+    timeout: int = 30
+    max_retries: int = 3
+    retry_delay: float = 1.0
     base_url: str = "https://api.vworld.kr"
 
     def _get(self, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        response = requests.get(
-            f"{self.base_url}{path}",
-            params=params,
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
+        response = self._request_with_retry(path, params)
 
         payload = response.json()
         response_meta = payload.get("response", {})
@@ -100,6 +102,28 @@ class VWorldClient:
             raise VWorldAPIError(message or f"VWorld API error: {status}")
 
         return payload
+
+    def _request_with_retry(self, path: str, params: Dict[str, Any]) -> Response:
+        last_error: Optional[Exception] = None
+
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = requests.get(
+                    f"{self.base_url}{path}",
+                    params=params,
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
+                return response
+            except RequestException as exc:
+                last_error = exc
+                if attempt == self.max_retries:
+                    break
+                time.sleep(self.retry_delay * attempt)
+
+        raise VWorldRequestError(
+            f"VWorld 요청 실패: {path}, 재시도 {self.max_retries}회 모두 실패"
+        ) from last_error
 
     def get_coordinates_from_address(
         self,
@@ -203,4 +227,3 @@ def extract_centroid(geometry_type: str, coordinates: Any) -> Tuple[float, float
         return polygon_centroid(coordinates[0][0])
 
     raise ValueError(f"Unsupported geometry type: {geometry_type}")
-

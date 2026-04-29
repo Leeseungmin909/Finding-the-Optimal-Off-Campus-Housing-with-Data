@@ -2,6 +2,25 @@
 
 부산 지역(특히 동의대학교 인근) 자취방 데이터를 정제하고, 공간정보 오픈 API(VWorld)와 자체 입지 분석 알고리즘을 결합하여 최적의 자취방을 추천해 주는 Streamlit 기반 인터랙티브 웹 대시보드입니다.
 
+## 프로젝트 화면 (미리보기)
+<img width="1901" height="945" alt="image" src="https://github.com/user-attachments/assets/cfbf82a9-3c7b-4cd4-86db-c5e9138d1197" />
+
+## 디렉토리 구조
+
+```text
+📦 Finding-the-Optimal-Off-Campus-Housing-with-Data
+ ┣ 📂 data           # 원본 및 정제된 CSV 데이터 폴더
+ ┣ 📂 src            # 데이터 전처리 및 지도 생성 핵심 모듈
+ ┃ ┣ 📜 data.py
+ ┃ ┣ 📜 enrich_house_coordinates.py
+ ┃ ┣ 📜 generate_folium_map.py
+ ┃ ┣ 📜 pnu_generator.py
+ ┃ ┗ 📜 vworld_client.py
+ ┣ 📜 app.py         # Streamlit 웹 대시보드 메인 실행 파일
+ ┣ 📜 requirements.txt
+ ┣ 📜 README.md
+ ┗ 📜 .gitignore
+
 ## 구현된 흐름
 
 1. `src/data.py`

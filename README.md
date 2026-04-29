@@ -20,9 +20,9 @@
  ┣ 📜 requirements.txt
  ┣ 📜 README.md
  ┗ 📜 .gitignore
+```
 
-## 구현된 흐름
-
+## 프로젝트 파이프라인 
 1. `src/data.py`
    원본 자취방/버스/CCTV/지하철 데이터를 정제해 `cleaned_*.csv`로 저장합니다.
 2. `src/pnu_generator.py`

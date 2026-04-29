@@ -1,23 +1,27 @@
 # Finding the Optimal Off-Campus Housing with Data
 
-부산 지역 자취방 데이터를 정제하고, 공간정보 오픈 API(VWorld)와 지도 시각화를 결합해
-최적 자취방 후보를 분석하는 프로젝트입니다.
+부산 지역(특히 동의대학교 인근) 자취방 데이터를 정제하고, 공간정보 오픈 API(VWorld)와 자체 입지 분석 알고리즘을 결합하여 최적의 자취방을 추천해 주는 Streamlit 기반 인터랙티브 웹 대시보드입니다.
 
-## 현재 구현된 흐름
+## 구현된 흐름
 
-1. `data.py`
+1. `src/data.py`
    원본 자취방/버스/CCTV/지하철 데이터를 정제해 `cleaned_*.csv`로 저장합니다.
 2. `src/pnu_generator.py`
    자취방 주소를 기반으로 법정동코드와 PNU를 생성합니다.
 3. `src/enrich_house_coordinates.py`
-   VWorld API를 호출해 자취방별 위도/경도를 조회하고
-   최종본 `house_with_coordinates.csv`, 디버그본 `house_with_coordinates_debug.csv`로 저장합니다.
+   VWorld API를 호출하여 주소 및 PNU 기반으로 자취방별 위도/경도를 조회하고 좌표 데이터를 확보합니다.
+4. `src/generate_folium_map.py`
+   동적 가중치 연산 및 Folium 기반 히트맵, 후보 자취방 마커 시각화 로직을 처리합니다.
+5. `app.py`
+   Streamlit 기반의 대시보드 웹 UI를 생성하고 데이터 분석 결과와 지도를 화면에 통합 렌더링합니다.
 
-## 설치
+## 로컬 실행 방법 
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
+## 가상환경 및 라이브러리 설치
+
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
@@ -36,52 +40,26 @@ VWORLD_API_KEY=YOUR_VWORLD_API_KEY
 ```
 
 ## 실행 순서
+터미널에 아래 명령어를 순서대로 입력합니다. (데이터 정제는 최초 1회만 실행해도 무방합니다.)
 
 ```bash
-python3 data.py
-python3 src/pnu_generator.py
-python3 src/enrich_house_coordinates.py --limit 100
+python src/data.py
+python src/pnu_generator.py
+python src/enrich_house_coordinates.py
+streamlit run app.py
 ```
 
-필요하면 일회성으로 `--api-key` 옵션을 직접 넘길 수도 있습니다.
+명령어를 입력하면 브라우저가 자동 실행되며 웹 대시보드가 열립니다.
+좌측 사이드바에서 가중치를 실시간으로 조절하며 지도의 변화를 확인할 수 있으며, 매물 표의 항목을 클릭하면 해당 위치로 지도가 이동합니다.
 
-대량 데이터 전체 실행 전에는 먼저 일부 샘플로 테스트하는 것을 권장합니다.
+**1. 코어 점수 (사용자 맞춤형 가중치 적용)**
+사용자가 웹 대시보드에서 직접 설정한 가중치를 바탕으로 정규화하여 계산합니다.
+- **월세:** 가격이 낮을수록 높은 점수 할당 
+- **학교 거리:** 동의대 정문 기준, 직선거리가 가까울수록 높은 점수 할당 
+- **건물 연식:** 최근에 건축된 매물일수록 높은 점수 할당
 
-```bash
-python3 src/enrich_house_coordinates.py --limit 100 --query-strategy address_only --timeout 20 --max-retries 3 --sleep-seconds 0.05
-python3 src/enrich_house_coordinates.py --query-strategy address_only --timeout 20 --max-retries 3 --sleep-seconds 0.05
-```
-
-## 좌표 조회 전략
-
-- 1순위: `PNU` 기반 연속지적도 조회 후 필지 중심점 계산
-- 2순위: `시도 + 구 + 법정동 + 번지` 조합의 지번 주소로 좌표 조회
-- 출력 좌표계: `EPSG:4326` 기준 `경도`, `위도`
-
-## 다음 단계
-
-다음 구현 단계에서는 `house_with_coordinates.csv`를 이용해 Folium 기반 히트맵과
-후보 자취방 마커 시각화를 연결할 수 있습니다.
-
-## Folium 지도 생성
-
-아래 스크립트는 자취방 좌표, 버스 정류장, CCTV 데이터를 이용해
-`최적 자취방 히트맵`과 `상위 후보 마커`가 포함된 HTML 지도를 생성합니다.
-
-```bash
-python3 src/generate_folium_map.py --top-n 20
-```
-
-생성 결과:
-
-- `outputs/optimal_room_map.html`
-- `outputs/optimal_room_scores.csv`
-
-평가 점수는 아래 요소를 가중합해서 계산합니다.
-
-- 월세가 낮을수록 가산점
-- 보증금이 낮을수록 가산점
-- 전용면적이 넓을수록 가산점
-- 건축년도가 최근일수록 가산점
-- 주변 버스 정류장 수가 많을수록 가산점
-- 주변 CCTV 수가 많을수록 가산점
+**2. 알파 점수 (거리 감쇠 모델이 적용된 입지 보너스)**
+단순히 반경 내 개수를 세는 것을 넘어, '매물과 인프라 사이의 거리'에 따라 점수가 연속적으로 차등 지급되는 거리 감쇠 로직을 적용했습니다.
+- **지하철 접근성:** 반경 800m 이내 접근 시, 거리가 가까울수록 보너스 점수 점진적 증가 (최대 12점)
+- **버스 접근성:** 반경 500m 이내 접근 시, 거리가 가까울수록 보너스 점수 점진적 증가 (최대 5점)
+- **방범 안전성:** 반경 150m 이내 방범용 CCTV 밀집도에 비례하여 안전 점수 부여 (최대 3점)

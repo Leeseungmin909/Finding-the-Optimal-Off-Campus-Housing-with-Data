@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Optional, Tuple
 
+from dotenv import load_dotenv
 import requests
 from requests import Response
 from requests.exceptions import RequestException
@@ -12,7 +13,8 @@ try:
     from pyproj import Transformer
 except ImportError:  # pragma: no cover - optional at import time
     Transformer = None
-
+    
+load_dotenv()
 
 class VWorldAPIError(RuntimeError):
     """Raised when the VWorld API returns an error response."""
